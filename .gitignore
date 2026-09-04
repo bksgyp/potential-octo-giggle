@@ -1,0 +1,10 @@
+# 개인정보가 들어간 최종 제출본은 커밋하지 않음 (필요 시 명시적으로 추가)
+application/submitted/*.docx
+application/submitted/*.pdf
+!application/submitted/.gitkeep
+
+# OS / 편집기
+.DS_Store
+Thumbs.db
+~$*.docx
+*.tmp
