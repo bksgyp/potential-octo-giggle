@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "comradar"
+version = "0.1.0"
+description = "커뮤니티를 주기적으로 읽고 실생활 불편 신호를 한 장으로 정리하는 멀티 에이전트 프레임워크"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=1.3.0",
+    "pydantic>=2.7",
+    "PyYAML>=6.0",
+    "httpx2>=0.1",
+    "feedparser>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+comradar = "comradar.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"

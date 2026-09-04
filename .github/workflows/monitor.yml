@@ -1,0 +1,73 @@
+name: 커뮤니티 모니터링
+
+# 매시간 수집한다. 보고서는 comradar가 스스로 판단해
+# run.report_interval_hours(기본 4시간)마다 한 번만 만든다.
+# GitHub의 예약 실행은 지연되거나 건너뛸 수 있다. 지연을 견디지 못하는
+# 운영이라면 서버에 cron으로 거는 편이 낫다. README의 cron 절을 볼 것.
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      force_report:
+        description: 주기와 무관하게 보고서를 만든다
+        type: boolean
+        default: false
+
+concurrency:
+  group: comradar-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -e .
+
+      # 중복 수집을 막는 상태 DB. 캐시는 최선의 노력이고 만료될 수 있다.
+      # 캐시를 놓치면 이미 본 글을 다시 분석하게 되어 그 회차 비용이 늘 뿐,
+      # 결과가 틀려지지는 않는다.
+      - name: 상태 DB 복원
+        uses: actions/cache/restore@v4
+        with:
+          path: .comradar
+          key: comradar-state-${{ github.run_id }}
+          restore-keys: comradar-state-
+
+      - name: 실행
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          comradar run ${{ inputs.force_report && '--force-report' || '' }}
+
+      - name: 상태 DB 저장
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .comradar
+          key: comradar-state-${{ github.run_id }}
+
+      - name: 보고서 커밋
+        run: |
+          if [ -z "$(git status --porcelain reports)" ]; then
+            echo "새 보고서가 없습니다."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports
+          git commit -m "report: $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push

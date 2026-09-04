@@ -1,0 +1,181 @@
+# comradar 설정.
+# 커뮤니티를 추가하는 일은 이 파일을 고치는 일이지 코드를 고치는 일이 아니다.
+# 새 커뮤니티를 켜기 전에 반드시 `comradar doctor`로 연결을 확인할 것.
+
+run:
+  # 관측 구간. 보고 주기와 맞춰 두면 각 보고서가 "지난 보고 이후 새로 들어온 것"을
+  # 정확히 다룬다. 더 긴 추세를 보고 싶으면 window만 늘리면 된다(예: 12).
+  window_hours: 4
+  # 수집은 run을 호출할 때마다(=매시간) 일어나고, 보고서는 이 주기로만 나온다.
+  report_interval_hours: 4
+  max_posts_per_community: 40
+  min_engagement: 0          # 추천 + 2*댓글 이 값 미만이면 버린다
+  max_pain_points_per_community: 12
+  max_themes: 8
+  max_new_ideas: 3
+  timezone: Asia/Seoul
+  output_dir: reports
+  state_db: .comradar/state.db
+
+models:
+  # 기본은 네 역할 모두 claude-opus-5.
+  # 수집 에이전트는 호출 수가 가장 많은 자리라 비용을 줄이고 싶다면 여기부터
+  # effort를 낮추고, 그래도 부족하면 model을 바꾼다. 품질 저하는 보고서에
+  # 그대로 드러나므로 바꾼 뒤 며칠은 결과를 비교해 볼 것.
+  collector:
+    model: claude-opus-5
+    effort: medium
+    max_tokens: 16000
+  synthesizer:
+    model: claude-opus-5
+    effort: high
+    max_tokens: 16000
+  ideation:
+    model: claude-opus-5
+    effort: high
+    max_tokens: 16000
+  reporter:
+    model: claude-opus-5
+    effort: high
+    max_tokens: 8000
+
+# 사업화 에이전트가 대조할 기존 아이디어 목록.
+# Notion 페이지의 첫 번째 표(종합 비교)를 읽는다.
+# 준비: notion.so/my-integrations 에서 내부 통합을 만들고 토큰을 NOTION_TOKEN에
+# 넣은 뒤, 해당 페이지의 [...] → 연결 메뉴에서 그 통합을 연결한다.
+# 토큰이 없거나 요청이 실패하면 snapshot_path의 로컬 사본으로 대신한다.
+portfolio:
+  enabled: true
+  source: notion              # notion | file
+  token_env: NOTION_TOKEN
+  page_id: "2ae959f514e4806b8accf715136b5e04"   # <사업화 아이디어>
+  table_index: 0              # 페이지 최상위 표 중 몇 번째인지 (0 = 종합 비교)
+  snapshot_path: config/ideas.yaml
+
+http:
+  # 실제로 연락 가능한 식별자로 바꿀 것. Reddit을 포함한 여러 사이트가
+  # 정체를 밝히지 않는 클라이언트를 차단한다.
+  user_agent: "comradar/0.1 (+https://github.com/bksgyp/potential-octo-giggle)"
+  timeout_seconds: 20
+  request_delay_seconds: 1.0
+  max_concurrent_fetches: 4
+
+delivery:
+  markdown: true
+  html: true
+  stdout: true
+  # 이 이름의 환경변수에 웹훅 URL이 있으면 슬랙으로도 보낸다. 없으면 조용히 넘어간다.
+  slack_webhook_env: SLACK_WEBHOOK_URL
+
+# ---------------------------------------------------------------------------
+# 국내 3 : 해외 2 비율. 트래픽이 큰 곳 위주로 골랐다.
+#
+# 경고: 아래 국내 피드 주소는 이 저장소를 만든 환경에서 외부 네트워크가 막혀 있어
+# 실제 응답을 확인하지 못했다. 사이트 개편으로 주소가 바뀌기도 한다.
+# 처음 켤 때 반드시 `comradar doctor`로 확인하고, 실패하면 해당 사이트의
+# RSS 주소를 찾아 options.url만 교체하면 된다. 어댑터는 그대로 쓴다.
+# 각 사이트의 이용약관과 robots.txt를 확인하는 것은 운영자의 책임이다.
+# ---------------------------------------------------------------------------
+communities:
+  # --- 국내 3 ---
+  - name: 디시인사이드 실시간베스트
+    source: rss
+    locale: ko
+    options:
+      url: https://gall.dcinside.com/board/rss/?id=hit
+    max_posts: 40
+
+  - name: 클리앙 모두의공원
+    source: rss
+    locale: ko
+    options:
+      url: https://www.clien.net/service/rss/board/park
+    max_posts: 40
+
+  - name: 뽐뿌 자유게시판
+    source: rss
+    locale: ko
+    options:
+      url: http://www.ppomppu.co.kr/rss.php?id=freeboard
+    max_posts: 40
+
+  # --- 해외 2 ---
+  # Reddit은 세계 최상위 트래픽 커뮤니티다. 두 서브레딧 모두 생활 마찰이 주제다.
+  # r/mildlyinfuriating은 사소하지만 반복되는 불편, r/LifeProTips는 사람들이
+  # 실제로 쓰고 있는 우회책이 모인다. 우회책이 많다는 것은 제품이 없다는 뜻이다.
+  - name: r/mildlyinfuriating
+    source: reddit
+    locale: en
+    options:
+      subreddit: mildlyinfuriating
+      listing: new
+    max_posts: 40
+
+  - name: r/LifeProTips
+    source: reddit
+    locale: en
+    options:
+      subreddit: LifeProTips
+      listing: new
+    max_posts: 30
+
+  # ---------------------------------------------------------------------------
+  # 예비 소스. 위 중 하나가 막히면 enabled: true로 바꿔 자리를 메운다.
+  # ---------------------------------------------------------------------------
+  - name: 루리웹 유머게시판
+    source: rss
+    enabled: false
+    locale: ko
+    options:
+      url: https://bbs.ruliweb.com/community/board/300143/rss
+
+  - name: Hacker News
+    source: hackernews
+    enabled: false
+    locale: en
+    options:
+      tags: story
+
+  - name: Ask HN
+    source: hackernews
+    enabled: false
+    locale: en
+    options:
+      tags: ask_hn
+
+  - name: Lemmy World
+    source: lemmy
+    enabled: false
+    locale: en
+    options:
+      instance: https://lemmy.world
+      sort: New
+      type: All
+
+  # Discourse를 쓰는 포럼이면 base_url만 바꿔 끼우면 된다.
+  - name: Discourse Meta
+    source: discourse
+    enabled: false
+    locale: en
+    options:
+      base_url: https://meta.discourse.org
+
+  # 전용 어댑터가 없는 JSON API는 이 형태로 붙인다.
+  - name: 예시 JSON API
+    source: json
+    enabled: false
+    locale: ko
+    options:
+      url: https://example.com/api/posts
+      items_path: data.items       # 배열이 있는 위치. 최상위면 비워 둔다.
+      params:
+        limit: 40
+      fields:                       # 왼쪽이 comradar 필드, 오른쪽이 응답 키 경로
+        id: id
+        title: subject
+        body: content
+        url: permalink
+        author: writer.nickname
+        score: like_count
+        comments: comment_count
+        created_at: created_at
