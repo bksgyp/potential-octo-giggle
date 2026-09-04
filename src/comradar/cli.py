@@ -6,6 +6,7 @@
     comradar collect             # 수집만. 보고서는 만들지 않는다
     comradar report              # 저장된 관측만으로 보고서를 다시 만든다
     comradar loop --interval 1h  # 프로세스 안에서 매시간 run을 반복
+    comradar discover <게시판주소>  # 그 사이트의 실제 RSS 주소를 찾아 준다
     comradar doctor              # 설정, 소스 연결, 아이디어 포트폴리오 점검
     comradar sources             # 사용 가능한 소스 어댑터
     comradar history             # 최근 실행 기록
@@ -26,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .config import AppConfig, ConfigError, load_config
+from .discover import config_snippet, discover
 from .pipeline import Pipeline, RunResult
 from .portfolio import load_portfolio
 from .sources import available_sources
@@ -209,6 +211,41 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def cmd_discover(args: argparse.Namespace) -> int:
+    """피드 주소는 추측하지 말고 사이트에 직접 물어본다."""
+    config = load_config(args.config)
+    candidates = asyncio.run(
+        discover(
+            args.url,
+            user_agent=config.http.user_agent,
+            timeout=config.http.timeout_seconds,
+            try_common_paths=not args.declared_only,
+        )
+    )
+    if not candidates:
+        print("후보를 찾지 못했습니다.")
+        return 1
+
+    print(f"{args.url} 에서 찾은 피드 후보\n")
+    for candidate in candidates:
+        if candidate.ok:
+            print(f"  OK   [{candidate.source}] {candidate.url}")
+            print(f"       항목 {candidate.entries}건 · {candidate.title or '(제목 없음)'}")
+            if candidate.sample:
+                print(f"       최근 글: {candidate.sample}")
+        else:
+            print(f"  FAIL [{candidate.source}] {candidate.url} — {candidate.error}")
+
+    snippet = config_snippet(args.name or "이름을 정하세요", candidates)
+    if not snippet:
+        print("\n동작하는 피드가 없습니다. 이 사이트는 RSS를 제공하지 않을 수 있습니다.")
+        print("`comradar sources`의 다른 어댑터(naver, json)를 검토하세요.")
+        return 1
+    print("\nconfig/communities.yaml 의 communities: 아래에 붙여넣으세요.\n")
+    print(snippet)
+    return 0
+
+
 def cmd_sources(_: argparse.Namespace) -> int:
     print("사용 가능한 소스 어댑터:")
     for name in available_sources():
@@ -271,6 +308,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = sub.add_parser("doctor", help="설정과 소스 연결을 점검한다")
     doctor.set_defaults(func=cmd_doctor)
+
+    disc = sub.add_parser("discover", help="사이트의 실제 RSS 주소를 찾는다")
+    disc.add_argument("url", help="게시판 페이지 주소. 피드 주소를 직접 넣어도 된다.")
+    disc.add_argument("--name", default="", help="스니펫에 넣을 커뮤니티 이름")
+    disc.add_argument(
+        "--declared-only", action="store_true", help="관용 경로는 시도하지 않는다"
+    )
+    disc.set_defaults(func=cmd_discover)
 
     sources = sub.add_parser("sources", help="소스 어댑터 목록")
     sources.set_defaults(func=cmd_sources)

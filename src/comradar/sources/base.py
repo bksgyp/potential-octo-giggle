@@ -62,10 +62,15 @@ def require(options: dict, key: str, community: str) -> str:
     return str(value)
 
 
-async def get_json(ctx: FetchContext, url: str, params: dict | None = None):
+async def get_json(
+    ctx: FetchContext,
+    url: str,
+    params: dict | None = None,
+    headers: dict | None = None,
+):
     """GET a JSON document, converting transport failures into SourceError."""
     try:
-        resp = await ctx.client.get(url, params=params)
+        resp = await ctx.client.get(url, params=params, headers=headers)
         resp.raise_for_status()
         return resp.json()
     except httpx.HTTPStatusError as exc:

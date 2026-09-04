@@ -68,36 +68,65 @@ delivery:
   slack_webhook_env: SLACK_WEBHOOK_URL
 
 # ---------------------------------------------------------------------------
-# 국내 3 : 해외 2 비율. 트래픽이 큰 곳 위주로 골랐다.
+# 국내 3 : 해외 2.
 #
-# 경고: 아래 국내 피드 주소는 이 저장소를 만든 환경에서 외부 네트워크가 막혀 있어
-# 실제 응답을 확인하지 못했다. 사이트 개편으로 주소가 바뀌기도 한다.
-# 처음 켤 때 반드시 `comradar doctor`로 확인하고, 실패하면 해당 사이트의
-# RSS 주소를 찾아 options.url만 교체하면 된다. 어댑터는 그대로 쓴다.
-# 각 사이트의 이용약관과 robots.txt를 확인하는 것은 운영자의 책임이다.
+# 국내 대형 커뮤니티는 대부분 공식 RSS가 없다. 확인한 바로는 클리앙,
+# 디시인사이드, 오늘의유머는 공식 피드를 제공하지 않고, 뽐뿌는 뽐뿌게시판·쿠폰·
+# 이벤트 같은 특가 게시판에만 제공한다. 그래서 여기서는 추측한 주소를 쓰지 않고,
+# 사이트가 문서로 밝힌 경로만 기본값으로 둔다.
+#
+#   루리웹  — 공식 RSS 안내가 있고 주소 형식이 공개되어 있다.
+#             https://bbs.ruliweb.com/{탑메뉴}/board/{게시판번호}/rss
+#   네이버  — 검색 API로 카페글과 지식iN을 읽는다. 국내 최대 UGC이고,
+#             지식iN은 사람들이 생활에서 막혔을 때 찾아오는 곳이다.
+#
+# 다른 사이트를 붙이고 싶으면 주소를 추측하지 말고 물어보면 된다.
+#   comradar discover https://그사이트/게시판주소 --name "커뮤니티 이름"
 # ---------------------------------------------------------------------------
 communities:
   # --- 국내 3 ---
-  - name: 디시인사이드 실시간베스트
+  # options.url은 후보 목록을 받는다. 첫 번째로 항목이 파싱되는 주소를 쓴다.
+  # 사이트가 개편돼 한쪽이 죽어도 다음 주소로 넘어간다.
+  - name: 루리웹 유머 게시판
     source: rss
     locale: ko
     options:
-      url: https://gall.dcinside.com/board/rss/?id=hit
+      url:
+        - https://bbs.ruliweb.com/community/board/300143/rss
+        - https://m.ruliweb.com/community/board/300143/rss
     max_posts: 40
 
-  - name: 클리앙 모두의공원
-    source: rss
+  # 네이버 검색 API. https://developers.naver.com 에서 애플리케이션을 등록하고
+  # NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 환경변수에 넣으면 된다.
+  # 키가 없으면 이 두 소스는 그 회차에 실패하고 보고서 각주에 그대로 남는다.
+  # 키를 만들지 않겠다면 아래 예비 소스의 루리웹 질문 게시판과 뽐뿌를 켜면 된다.
+  #
+  # 검색 API라서 씨앗 질의가 필요하다. 질의가 곧 표본이라는 뜻이고, 질의를 바꾸면
+  # 보이는 불편도 바뀐다. 이 편향은 숨기지 말고 알고 쓸 것.
+  - name: 네이버 카페 통합검색
+    source: naver
     locale: ko
     options:
-      url: https://www.clien.net/service/rss/board/park
+      service: cafearticle
+      sort: date
+      queries:
+        - 너무 불편해요
+        - 방법 없을까요
+        - 매번 이래야 하나요
+        - 이거 저만 그런가요
     max_posts: 40
 
-  - name: 뽐뿌 자유게시판
-    source: rss
+  - name: 네이버 지식iN
+    source: naver
     locale: ko
     options:
-      url: http://www.ppomppu.co.kr/rss.php?id=freeboard
-    max_posts: 40
+      service: kin
+      sort: date
+      queries:
+        - 어떻게 해야 하나요
+        - 방법이 없을까요
+        - 매번 이렇게 해야 하나요
+    max_posts: 30
 
   # --- 해외 2 ---
   # Reddit은 세계 최상위 트래픽 커뮤니티다. 두 서브레딧 모두 생활 마찰이 주제다.
@@ -120,14 +149,27 @@ communities:
     max_posts: 30
 
   # ---------------------------------------------------------------------------
-  # 예비 소스. 위 중 하나가 막히면 enabled: true로 바꿔 자리를 메운다.
+  # 예비 소스. 위 중 하나가 막히거나 네이버 키를 만들지 않을 때 자리를 메운다.
+  # 루리웹 질문 게시판과 뽐뿌는 공식 문서로 확인된 주소이므로 바로 켜도 된다.
   # ---------------------------------------------------------------------------
-  - name: 루리웹 유머게시판
+  - name: 루리웹 질문 게시판
     source: rss
     enabled: false
     locale: ko
     options:
-      url: https://bbs.ruliweb.com/community/board/300143/rss
+      url:
+        - https://bbs.ruliweb.com/community/board/300142/rss
+        - https://m.ruliweb.com/community/board/300142/rss
+
+  # 뽐뿌는 특가 게시판에만 RSS를 제공한다(자유게시판·유머게시판은 없음).
+  # 생활 불편보다는 소비 마찰이 잡힌다는 점을 감안할 것.
+  - name: 뽐뿌 뽐뿌게시판
+    source: rss
+    enabled: false
+    locale: ko
+    options:
+      url:
+        - http://www.ppomppu.co.kr/rss.php?id=ppomppu
 
   - name: Hacker News
     source: hackernews
