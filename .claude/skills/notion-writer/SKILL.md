@@ -81,6 +81,12 @@ Notion은 표준 마크다운이 아니라 "Notion-flavored Markdown"을 쓴다.
 - 빈 줄은 무시되므로 간격을 띄우려고 빈 줄을 넣지 않는다. 꼭 필요하면 `<empty-block/>`.
 - 인용 여러 줄은 `> 첫 줄<br>둘째 줄`처럼 한 블록 안에서 `<br>`로 잇는다.
 
+### 전체 교체(`replace_content`)의 함정
+
+- 교체 직전에 반드시 `notion-fetch`를 다시 한다. 마지막으로 읽은 뒤 사용자나 다른 세션이 하위 페이지를 만들었을 수 있다. 하위 페이지가 `new_str`에 없으면 API가 "would delete N child page(s)" 오류로 거부한다.
+- 오류가 나면 `allow_deleting_content: true`로 밀어붙이지 않는다. 그 하위 페이지를 fetch로 읽어 내용을 파악한 뒤, `new_str`끝에 `<page url="...">제목</page>` 태그를 넣어 보존한다. 관련 문서라면 상단 콜아웃에서 `<mention-page>`로 교차 참조까지 해 준다.
+- fetch 결과에서 `<page url="...">` 태그는 본문 마지막에 나타난다. 그 위치를 유지하려면 `new_str`의 마지막 줄에 그대로 둔다.
+
 ### 부분 수정(`update_content`)의 함정
 
 - fetch 결과에서 표는 `<tr>\n<td>` 처럼 탭 들여쓰기 없이 돌아온다. `old_str`은 그 형태 그대로 복사한다.
